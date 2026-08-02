@@ -1,0 +1,27 @@
+{
+  "candidate": {
+    "allocator": "inherit",
+    "batch": 2048,
+    "binary": "v3",
+    "gpu_layers": "auto",
+    "host": "127.0.0.1",
+    "model": "${MODEL_PATH}",
+    "n_cpu_moe": 45,
+    "override_tensor": "",
+    "port": 18080,
+    "threads": 8,
+    "threads_batch": 32,
+    "ubatch": 1024,
+    "wrapper": "numactl-interleave"
+  },
+  "validation": {
+    "cv": 0.006852075197957044,
+    "gain_vs_v7": 1.686473558132021,
+    "max_prompt_tok_s": 176.92199080461904,
+    "mean_prompt_tok_s": 175.67477156454655,
+    "median_prompt_tok_s": 176.09250719268482,
+    "min_prompt_tok_s": 173.4113706464686,
+    "samples": 6,
+    "cold_loads": 2
+  }
+}
