@@ -1,0 +1,20 @@
+{
+  "v7-baseline": {
+    "prefix_sha256": "1f579ccf4de99394c78a9ecc58ced8c4c17e65ab6f9ca8fd805242c77dc7631e",
+    "wall_s": 93.47832632900099,
+    "turns": [
+      {"turn":1,"wall_s":87.9490211049997,"cache_n":0,"prompt_n":8701,"prompt_ms":85805.985,"prompt_per_second":101.40318300640683,"predicted_n":32,"predicted_ms":2022.632,"predicted_per_second":15.820969904559998,"content_sha256":"056e61043e957cbc6f0cbdf13566853e782cbda791243f4032d89b935bcde914"},
+      {"turn":2,"wall_s":2.7271318009989045,"cache_n":8732,"prompt_n":18,"prompt_ms":736.745,"prompt_per_second":24.431791189624633,"predicted_n":32,"predicted_ms":1978.424,"predicted_per_second":16.174490402461757,"content_sha256":"056e61043e957cbc6f0cbdf13566853e782cbda791243f4032d89b935bcde914"},
+      {"turn":3,"wall_s":2.7941996389999986,"cache_n":8781,"prompt_n":18,"prompt_ms":780.56,"prompt_per_second":23.060366916060268,"predicted_n":32,"predicted_ms":1989.737,"predicted_per_second":16.08252748981398,"content_sha256":"056e61043e957cbc6f0cbdf13566853e782cbda791243f4032d89b935bcde914"}
+    ]
+  },
+  "v8-candidate": {
+    "prefix_sha256": "1f579ccf4de99394c78a9ecc58ced8c4c17e65ab6f9ca8fd805242c77dc7631e",
+    "wall_s": 58.38517448199855,
+    "turns": [
+      {"turn":1,"wall_s":52.93841433999842,"cache_n":0,"prompt_n":8701,"prompt_ms":50717.984,"prompt_per_second":171.55650350771043,"predicted_n":32,"predicted_ms":2104.496,"predicted_per_second":15.205540899103633,"content_sha256":"056e61043e957cbc6f0cbdf13566853e782cbda791243f4032d89b935bcde914"},
+      {"turn":2,"wall_s":2.683251886999642,"cache_n":8732,"prompt_n":18,"prompt_ms":701.353,"prompt_per_second":25.664679555088526,"predicted_n":32,"predicted_ms":1959.183,"predicted_per_second":16.333338947918598,"content_sha256":"056e61043e957cbc6f0cbdf13566853e782cbda791243f4032d89b935bcde914"},
+      {"turn":3,"wall_s":2.7551099970005453,"cache_n":8781,"prompt_n":18,"prompt_ms":770.43,"prompt_per_second":23.36357618472801,"predicted_n":32,"predicted_ms":1961.271,"predicted_per_second":16.31595021799639,"content_sha256":"056e61043e957cbc6f0cbdf13566853e782cbda791243f4032d89b935bcde914"}
+    ]
+  }
+}
