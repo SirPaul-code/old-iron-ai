@@ -1,0 +1,44 @@
+{
+  "v7_median_prompt_tok_s": 104.41462680727065,
+  "final_candidate": {
+    "binary": "v3",
+    "wrapper": "numactl-interleave",
+    "allocator": "inherit",
+    "threads": 8,
+    "threads_batch": 32,
+    "batch": 2048,
+    "ubatch": 1024,
+    "n_cpu_moe": 45,
+    "gpu_layers": "auto",
+    "override_tensor": ""
+  },
+  "runtime_screen": [
+    {"name":"runtime-ub1024","prompt_tok_s":174.483080815979},
+    {"name":"runtime-b4096-ub512","prompt_tok_s":102.46551058218283},
+    {"name":"runtime-v7","prompt_tok_s":102.28639774497942},
+    {"name":"runtime-cpu-moe46","prompt_tok_s":100.80281445728679},
+    {"name":"runtime-ub256","prompt_tok_s":60.43155631232061}
+  ],
+  "final_validation": {
+    "samples": 6,
+    "cold_loads": 2,
+    "min_prompt_tok_s": 173.4113706464686,
+    "median_prompt_tok_s": 176.09250719268482,
+    "mean_prompt_tok_s": 175.67477156454655,
+    "max_prompt_tok_s": 176.92199080461904,
+    "cv": 0.006852075197957044,
+    "gain_vs_v7": 1.686473558132021
+  },
+  "agentic_fixture": {
+    "v7_first_turn_wall_s": 87.9490211049997,
+    "v8_first_turn_wall_s": 52.938,
+    "cached_follow_up_wall_s_approx": 2.7,
+    "recorded_decode_tok_s_range": [15,16]
+  },
+  "research_branch_result": {
+    "explicit_allocator_won": false,
+    "avx1_prefetch_won": false,
+    "alternative_moe_placement_won": false,
+    "selected_cause": "runtime geometry on the corrected no-mmap/interleaved host pipeline"
+  }
+}
