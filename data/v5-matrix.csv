@@ -1,0 +1,14 @@
+stage,arm,memory,balancing,cpu_set,threads,threads_batch,median_prompt_tok_s,cv_pct,samples
+v5a,exact-v3-no-affinity-no-perf,mmap,1,inherit,8,32,36.35,15.64,3
+v5a,no-affinity-with-perf,mmap,1,inherit,8,32,37.152,0.14,2
+v5a,node0-affinity-no-perf,mmap,1,"0-7,16-23",8,32,30.641,20.0,2
+v5a,node0-affinity-with-perf,mmap,1,"0-7,16-23",8,32,24.13,1.4,2
+v5b,all32-taskset-no-perf,mmap,0,0-31,8,32,38.26,0.16,2
+v5b,no-affinity-no-perf,mmap,0,inherit,8,32,38.377,0.21,3
+v5b,node0-affinity-no-perf,mmap,0,"0-7,16-23",8,32,38.015,0.42,3
+v5c,inherit-t16-tb16,mmap,0,inherit,16,16,38.113,0.01,2
+v5c,inherit-t16-tb32,mmap,0,inherit,16,32,24.865,0.42,2
+v5c,inherit-t8-tb16,mmap,0,inherit,8,16,38.523,0.07,2
+v5c,inherit-t8-tb32,mmap,0,inherit,8,32,38.77,0.06,2
+v5d,selected-config,no-mmap,0,inherit,8,32,101.044,0.36,2
+v5e,selected-config,no-mmap,0,inherit,8,32,94.201,0.61,3

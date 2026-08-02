@@ -1,0 +1,6 @@
+.env
+results/latest
+results/run-*
+__pycache__/
+*.pyc
+.venv/

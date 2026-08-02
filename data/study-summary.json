@@ -1,0 +1,6 @@
+{
+  "schema":1,
+  "headline":{"baseline_prompt_tok_s":38.721014,"final_prompt_tok_s":176.09250719268482,"speedup":4.547724581610513,"baseline_prompt_s_for_8686_tokens":224.32263783174687,"final_prompt_s_for_8686_tokens":49.3263463532583,"v8_vs_v7_speedup":1.686473558132021},
+  "scope":"Cold prompt-prefill on the reference host and fixed corpus. Decode and complete agent workflows are reported separately.",
+  "sources":{"v3":"data/v3-numa-placement.csv","v4":"data/v4-affinity-and-threads.csv","v5":"data/v5-matrix.csv","v6":"data/v6-load-path.csv","v7":"data/v7-summary.json","v8":"data/v8-summary.json"}
+}

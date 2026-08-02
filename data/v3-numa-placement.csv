@@ -1,0 +1,7 @@
+policy,sample,node0_pct,node1_pct,prompt_tok_s,prompt_s
+preferred:0,A,100.0,0.0,48.4947,179.1
+preferred:0,B,100.0,0.0,48.9855,177.86
+preferred:1,A,3.3,96.7,31.2129,278.17
+preferred:1,B,3.3,96.7,31.3911,277.2
+"interleave:0,1",A,50.0,50.0,48.2455,180.04
+"interleave:0,1",B,50.0,50.0,32.0423,271.62

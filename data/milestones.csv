@@ -1,0 +1,13 @@
+stage,prompt_tok_s,scope,validation
+V2 MLOCK_ONFAULT A,6.19,negative result,single run
+V2 MLOCK_ONFAULT B,28.19,negative result,single run
+V3 preferred node1,31.3,NUMA placement,2 samples
+V3 preferred node0,48.74,NUMA placement,2 samples
+V4 stable mmap,38.63,affinity/thread regression,3 samples
+V5 mmap t8/tb32,38.77,thread matrix,2 samples
+V5 no-mmap screen,101.044,load path screen,2 samples
+V5 no-mmap validation,94.201,load path validation,3 samples
+V6 paired mmap,38.721,paired causal baseline,6 samples / 2 loads
+V6 paired no-mmap,93.134,paired causal result,6 samples / 2 loads
+V7 final,104.41462680727065,pre-final baseline,6 samples / 2 loads
+V8 final,176.09250719268482,final cold-prefill candidate,6 samples / 2 loads

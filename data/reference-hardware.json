@@ -1,0 +1,21 @@
+{
+  "host_class": "HP ProLiant DL380p Gen8",
+  "cpu": {
+    "model": "Intel Xeon E5-2660 v1 (Sandy Bridge-EP)",
+    "sockets": 2,
+    "cores_per_socket": 8,
+    "threads_per_core": 2,
+    "logical_cpus": 32
+  },
+  "memory": {
+    "usable_gib": 173,
+    "type": "DDR3",
+    "numa_nodes": 2,
+    "node0_mib": 96619,
+    "node1_mib": 80633,
+    "distance_matrix": [[10,20],[20,10]]
+  },
+  "gpu": {"model":"NVIDIA GeForce RTX 3080","vram_mib":10240,"link_class":"PCIe 3.0 x16"},
+  "software": {"os":"Ubuntu 24.04 LTS","kernel_family":"Linux 6.8","backend":"llama.cpp"},
+  "workload": {"model":"Qwen3-Coder-Next Q8_0 GGUF","shards":4,"approx_model_size_gib":85,"prompt_tokens":"8685-8701 depending on fixture"}
+}

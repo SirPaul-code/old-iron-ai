@@ -1,0 +1,5 @@
+Old Iron AI
+
+Project-authored code and documentation are licensed under the MIT License.
+The experimental patch is a modification against llama.cpp; upstream copyrights and license terms remain with the llama.cpp contributors.
+Qwen model weights are not distributed by this repository.
