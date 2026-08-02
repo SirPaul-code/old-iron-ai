@@ -4,7 +4,7 @@
 
 Old Iron AI documents a controlled optimization study on a 2012 HP ProLiant DL380p Gen8 with two Intel Xeon E5-2660 CPUs, 173 GiB DDR3 and one RTX 3080 10 GiB. The reference workload was an approximately 85 GiB Qwen3-Coder-Next Q8_0 GGUF model, so host memory placement and bandwidth were part of the inference hot path.
 
-The project began with a crude end-to-end smoke test that needed roughly eight minutes to return a one-line `OK`. That observation is only the origin story: it mixed model loading, prompt processing, runtime overhead and output generation. The publishable study starts with a fixed corpus and measures those stages separately.
+The project began with a crude end-to-end smoke test that needed roughly eight minutes to return a one-line `OK`. That observation is only the origin story: it mixed model loading, prompt processing, runtime overhead and output generation. The publishable study starts with a fixed workload and measures those stages separately.
 
 ## Headline result
 
@@ -15,7 +15,7 @@ The project began with a crude end-to-end smoke test that needed roughly eight m
 | V7 validated profile | 104.415 tok/s | 83.2 s |
 | V8 final validation | **176.093 tok/s** | **49.3 s** |
 
-That is approximately **4.55x higher cold-prefill throughput** on the same host, GPU, model family and fixed workload. It is not a claim that generated-token speed or the complete agent became 4.55x faster. Recorded generation stayed around 15–16 tok/s in the V8 agentic fixture.
+That is approximately **4.55x higher cold prompt-prefill throughput** on the same host, GPU, model family and fixed workload. It is not a claim that generated-token speed or the complete agent became 4.55x faster. Recorded generation stayed around 15–16 tok/s in the V8 agentic fixture.
 
 V8 was validated across six samples from two independent cold process loads. The range was 173.411–176.922 tok/s with a coefficient of variation of 0.69%.
 
@@ -51,7 +51,7 @@ These values are a reproducible hypothesis set for similar systems, not universa
 
 ## Why it worked
 
-The 85 GiB model could not fit in 10 GiB of VRAM, so ordinary DDR3 was part of every inference request. The server is two NUMA domains connected by QPI rather than one flat pool of cores and RAM. V3 showed that physical page placement alone could change throughput by more than half. V6 then showed that placement did not rescue the mmap path: paired no-mmap loads were about 2.4x faster and loaded the model in roughly 475 seconds instead of roughly 1,386 seconds.
+The 85 GiB model could not fit in 10 GiB of VRAM, so ordinary DDR3 was part of the inference hot path. The server is two NUMA domains connected by QPI rather than one flat pool of cores and RAM. V3 showed that physical page placement alone could change throughput by more than half. V6 then showed that placement did not rescue the mmap path: paired no-mmap loads were about 2.4x faster and loaded the model in roughly 475 seconds instead of roughly 1,386 seconds.
 
 The V7 profile raised recorded GPU utilization from 38.49% to 97.45% while CPU IPC rose from 0.446 to 1.852. Concurrent memory testing reached 39.185 GiB/s, approximately the sum of the two local controllers. The evidence supports a host-pipeline explanation: the original runtime did not feed the GPU continuously; no-mmap plus an interleaved policy allowed more useful host and GPU work to overlap.
 
@@ -61,7 +61,7 @@ V8 exposed another large control after the loading path was corrected. A 1024-to
 
 ```text
 benchmarks/tools/          candidate generation, execution and analysis
-benchmarks/prompts/        fixed corpus and SHA-256 evidence
+benchmarks/prompts/        fingerprints-only prompt provenance manifest
 config/                    safe host configuration template
 data/                      normalized V3–V8 measurements
 evidence/v8/               final selected candidate and correctness evidence
@@ -99,7 +99,9 @@ The agent-oriented entry point is [`prompts/optimize-my-host.md`](prompts/optimi
 
 ## Evidence boundary
 
-Committed CSV and JSON files preserve the reported values used by public claims. Where only a normalized research handoff was available, the repository labels it as normalized evidence rather than pretending it is the original raw log. The complete ordered source patch series for a bit-identical research-binary rebuild was not available, so exact source reconstruction is not claimed.
+Committed CSV and JSON files preserve the reported values used by public claims. Where only a normalized research handoff was available, the repository labels it as normalized evidence rather than pretending it is the original raw log.
+
+The final public handoff preserved three SHA-256 prompt fingerprints and the reported 8,663-token input, but not the original prompt text. The repository therefore publishes a `fingerprints-only` manifest and does not fabricate replacement prompts. Exact token-stream reproduction requires the original artifacts matching those hashes. The complete ordered source patch series for a bit-identical research-binary rebuild was also not available, so exact source reconstruction is not claimed.
 
 ## Scope
 
