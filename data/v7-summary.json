@@ -1,0 +1,33 @@
+{
+  "median_prompt_tok_s": 104.41462680727065,
+  "range_prompt_tok_s": [102.264, 106.055],
+  "samples": 6,
+  "cold_loads": 2,
+  "load_to_load_cv_pct": 1.44,
+  "configuration": {
+    "load_mode": "no-mmap",
+    "process_policy": "interleave:0,1",
+    "kernel_numa_balancing": 0,
+    "thp": "original",
+    "threads": 8,
+    "threads_batch": 32
+  },
+  "profiling": {
+    "gpu_utilization_pct": 97.45,
+    "cpu_ipc": 1.852,
+    "imc_read_gib_s": 7.547,
+    "cache_miss_pct": 21.74
+  },
+  "mmap_baseline_profiling": {
+    "gpu_utilization_pct": 38.49,
+    "cpu_ipc": 0.446,
+    "imc_read_gib_s": 5.69,
+    "cache_miss_pct": 21.1
+  },
+  "memory_bandwidth_gib_s": {
+    "node0_local_triad": 19.515,
+    "node1_local_triad": 19.685,
+    "concurrent_aggregate_triad": 39.185,
+    "remote_range": [10, 11]
+  }
+}
