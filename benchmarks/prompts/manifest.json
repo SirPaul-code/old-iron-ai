@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "publication_status": "fingerprints-only",
+  "description": "Cryptographic fingerprints recorded by the V8 research handoff. The original prompt text was not present in the final public handoff and is therefore not reconstructed or fabricated in this repository.",
+  "benchmark_input_tokens": 8663,
+  "artifacts": [
+    {
+      "name": "prompt-A.txt",
+      "sha256": "1f579ccf4de99394c78a9ecc58ced8c4c17e65ab6f9ca8fd805242c77dc7631e"
+    },
+    {
+      "name": "prompt-B.txt",
+      "sha256": "65f17396904bb1e918e2f5879be425121baffa475477a0c57871759d82a1d1d1"
+    },
+    {
+      "name": "prompt-C.txt",
+      "sha256": "4f23217c4c4889de44279a03f986994d8d9dfe26cc802bbcf2a598aa25ae8654"
+    }
+  ]
+}
