@@ -1,0 +1,265 @@
+diff --git a/common/arg.cpp b/common/arg.cpp
+index a287b907..4c8b083f 100644
+--- a/common/arg.cpp
++++ b/common/arg.cpp
+@@ -258,6 +258,14 @@ static void parse_tensor_buffer_overrides(const std::string & value, std::vector
+             buft_list[ggml_backend_buft_name(buft)] = buft;
+         }
+     }
++#if defined(__linux__)
++    if (auto * numa0 = ggml_backend_cpu_numa_buffer_type(0)) {
++        buft_list[ggml_backend_buft_name(numa0)] = numa0;
++    }
++    if (auto * numa1 = ggml_backend_cpu_numa_buffer_type(1)) {
++        buft_list[ggml_backend_buft_name(numa1)] = numa1;
++    }
++#endif
+ 
+     for (const auto & override : string_split<std::string>(value, ',')) {
+         std::string::size_type pos = override.find('=');
+diff --git a/ggml/include/ggml-backend.h b/ggml/include/ggml-backend.h
+index 2924fdbe..042a2ff6 100644
+--- a/ggml/include/ggml-backend.h
++++ b/ggml/include/ggml-backend.h
+@@ -429,6 +429,8 @@ extern "C" {
+     // CPU buffer types are always available
+     GGML_API ggml_backend_buffer_t      ggml_backend_cpu_buffer_from_ptr(void * ptr, size_t size);
+     GGML_API ggml_backend_buffer_type_t ggml_backend_cpu_buffer_type(void);
++    // Experimental Linux NUMA-aware CPU buffer types. Returns NULL when unavailable.
++    GGML_API ggml_backend_buffer_type_t ggml_backend_cpu_numa_buffer_type(int node);
+ 
+ #ifdef  __cplusplus
+ }
+diff --git a/ggml/src/ggml-backend.cpp b/ggml/src/ggml-backend.cpp
+index 87615921..8bbc0501 100644
+--- a/ggml/src/ggml-backend.cpp
++++ b/ggml/src/ggml-backend.cpp
+@@ -15,6 +15,7 @@
+ 
+ #include <assert.h>
+ #include <limits.h>
++#include <stdint.h>
+ #include <stdarg.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -22,6 +23,13 @@
+ #include <algorithm>
+ #include <vector>
+ 
++#if defined(__linux__)
++#include <errno.h>
++#include <linux/mempolicy.h>
++#include <sys/syscall.h>
++#include <unistd.h>
++#endif
++
+@@ -2302,14 +2310,125 @@ static const char * ggml_backend_cpu_buffer_type_get_name(ggml_backend_buffer_ty
+     GGML_UNUSED(buft);
+ }
+ 
++enum pdl_numa_policy {
++    PDL_NUMA_NONE = 0,
++    PDL_NUMA_INTERLEAVE01,
++    PDL_NUMA_BIND0,
++    PDL_NUMA_BIND1,
++    PDL_NUMA_PREFERRED0,
++    PDL_NUMA_PREFERRED1,
++};
++
++static enum pdl_numa_policy pdl_numa_policy_from_string(const char * text) {
++    if (text == NULL || text[0] == '\0' || strcmp(text, "none") == 0 || strcmp(text, "inherit") == 0) {
++        return PDL_NUMA_NONE;
++    }
++    if (strcmp(text, "interleave") == 0 || strcmp(text, "interleave01") == 0 || strcmp(text, "0,1") == 0) {
++        return PDL_NUMA_INTERLEAVE01;
++    }
++    if (strcmp(text, "bind0") == 0 || strcmp(text, "node0") == 0) {
++        return PDL_NUMA_BIND0;
++    }
++    if (strcmp(text, "bind1") == 0 || strcmp(text, "node1") == 0) {
++        return PDL_NUMA_BIND1;
++    }
++    if (strcmp(text, "preferred0") == 0) {
++        return PDL_NUMA_PREFERRED0;
++    }
++    if (strcmp(text, "preferred1") == 0) {
++        return PDL_NUMA_PREFERRED1;
++    }
++    GGML_LOG_WARN("pdl-numa: unknown policy '%s'; using inherit\n", text);
++    return PDL_NUMA_NONE;
++}
++
++static const char * pdl_numa_policy_name(enum pdl_numa_policy policy) {
++    switch (policy) {
++        case PDL_NUMA_INTERLEAVE01: return "interleave01";
++        case PDL_NUMA_BIND0:        return "bind0";
++        case PDL_NUMA_BIND1:        return "bind1";
++        case PDL_NUMA_PREFERRED0:   return "preferred0";
++        case PDL_NUMA_PREFERRED1:   return "preferred1";
++        case PDL_NUMA_NONE:         return "inherit";
++    }
++    return "inherit";
++}
++
++static bool pdl_numa_apply(void * data, size_t size, enum pdl_numa_policy policy) {
++#if defined(__linux__) && defined(SYS_mbind)
++    if (policy == PDL_NUMA_NONE || data == NULL || size == 0) {
++        return true;
++    }
++
++    unsigned long mask = 0;
++    int mode = MPOL_DEFAULT;
++    switch (policy) {
++        case PDL_NUMA_INTERLEAVE01: mask = 0x3UL; mode = MPOL_INTERLEAVE; break;
++        case PDL_NUMA_BIND0:        mask = 0x1UL; mode = MPOL_BIND;       break;
++        case PDL_NUMA_BIND1:        mask = 0x2UL; mode = MPOL_BIND;       break;
++        case PDL_NUMA_PREFERRED0:   mask = 0x1UL; mode = MPOL_PREFERRED;  break;
++        case PDL_NUMA_PREFERRED1:   mask = 0x2UL; mode = MPOL_PREFERRED;  break;
++        case PDL_NUMA_NONE: return true;
++    }
++
++    const unsigned long maxnode = sizeof(mask) * 8UL;
++    const long rc = syscall(SYS_mbind, data, size, mode | MPOL_F_STATIC_NODES, &mask, maxnode, 0UL);
++    if (rc != 0) {
++        GGML_LOG_WARN("pdl-numa: mbind policy=%s size=%zu failed: %s\n",
++                pdl_numa_policy_name(policy), size, strerror(errno));
++        return false;
++    }
++    return true;
++#else
++    GGML_UNUSED(data);
++    GGML_UNUSED(size);
++    GGML_UNUSED(policy);
++    return false;
++#endif
++}
++
++static void * pdl_numa_aligned_malloc(size_t size, enum pdl_numa_policy policy) {
++    if (policy == PDL_NUMA_NONE) {
++        return ggml_aligned_malloc(size);
++    }
++#if defined(__linux__)
++    const long page_size_l = sysconf(_SC_PAGESIZE);
++    const size_t page_size = page_size_l > 0 ? (size_t) page_size_l : (size_t) 4096;
++    const size_t alloc_size = ((size + page_size - 1) / page_size) * page_size;
++    void * data = NULL;
++    if (posix_memalign(&data, page_size, alloc_size) != 0) {
++        return NULL;
++    }
++    if (!pdl_numa_apply(data, alloc_size, policy)) {
++        const char * strict = getenv("PDL_NUMA_STRICT");
++        if (strict && atoi(strict) != 0) {
++            free(data);
++            return NULL;
++        }
++    }
++    return data;
++#else
++    GGML_UNUSED(policy);
++    return ggml_aligned_malloc(size);
++#endif
++}
++
++static enum pdl_numa_policy pdl_numa_policy_for_buft(ggml_backend_buffer_type_t buft);
++
+ static ggml_backend_buffer_t ggml_backend_cpu_buffer_type_alloc_buffer(ggml_backend_buffer_type_t buft, size_t size) {
+-    void * data = ggml_aligned_malloc(size);
++    const enum pdl_numa_policy policy = pdl_numa_policy_for_buft(buft);
++    void * data = pdl_numa_aligned_malloc(size, policy);
+ 
+     if (data == NULL) {
+-        GGML_LOG_ERROR("%s: failed to allocate buffer of size %zu\n", __func__, size);
++        GGML_LOG_ERROR("%s: failed to allocate buffer of size %zu with policy %s\n",
++                __func__, size, pdl_numa_policy_name(policy));
+         return NULL;
+     }
+ 
++    if (policy != PDL_NUMA_NONE) {
++        GGML_LOG_DEBUG("pdl-numa: allocated CPU buffer size=%zu policy=%s\n", size, pdl_numa_policy_name(policy));
++    }
++
+     return ggml_backend_buffer_init(buft, ggml_backend_cpu_buffer_i, data, size);
+ }
+ 
+@@ -2342,6 +2461,58 @@ ggml_backend_buffer_type_t ggml_backend_cpu_buffer_type(void) {
+     return &ggml_backend_cpu_buffer_type;
+ }
+ 
++static const char * ggml_backend_cpu_numa0_buffer_type_get_name(ggml_backend_buffer_type_t buft) {
++    GGML_UNUSED(buft);
++    return "CPU_NUMA0";
++}
++
++static const char * ggml_backend_cpu_numa1_buffer_type_get_name(ggml_backend_buffer_type_t buft) {
++    GGML_UNUSED(buft);
++    return "CPU_NUMA1";
++}
++
++ggml_backend_buffer_type_t ggml_backend_cpu_numa_buffer_type(int node) {
++#if defined(__linux__)
++    static struct ggml_backend_buffer_type numa0 = {
++        { ggml_backend_cpu_numa0_buffer_type_get_name, ggml_backend_cpu_buffer_type_alloc_buffer,
++          ggml_backend_cpu_buffer_type_get_alignment, NULL, NULL, ggml_backend_cpu_buffer_type_is_host },
++        NULL, (void *) (intptr_t) 1,
++    };
++    static struct ggml_backend_buffer_type numa1 = {
++        { ggml_backend_cpu_numa1_buffer_type_get_name, ggml_backend_cpu_buffer_type_alloc_buffer,
++          ggml_backend_cpu_buffer_type_get_alignment, NULL, NULL, ggml_backend_cpu_buffer_type_is_host },
++        NULL, (void *) (intptr_t) 2,
++    };
++    if (node == 0) return &numa0;
++    if (node == 1) return &numa1;
++#else
++    GGML_UNUSED(node);
++#endif
++    return NULL;
++}
++
++static enum pdl_numa_policy pdl_numa_policy_for_buft(ggml_backend_buffer_type_t buft) {
++    ggml_backend_buffer_type_t numa0 = ggml_backend_cpu_numa_buffer_type(0);
++    ggml_backend_buffer_type_t numa1 = ggml_backend_cpu_numa_buffer_type(1);
++    if (numa0 && buft == numa0) return PDL_NUMA_BIND0;
++    if (numa1 && buft == numa1) return PDL_NUMA_BIND1;
++    return pdl_numa_policy_from_string(getenv("PDL_NUMA_CPU_BUFFER_POLICY"));
++}
++
+ static const char * ggml_backend_cpu_buffer_from_ptr_type_get_name(ggml_backend_buffer_type_t buft) {
+     return "CPU_Mapped";
+ 
+diff --git a/ggml/src/ggml-cpu/arch/x86/quants.c b/ggml/src/ggml-cpu/arch/x86/quants.c
+index ea54cfe4..2dd9798c 100644
+--- a/ggml/src/ggml-cpu/arch/x86/quants.c
++++ b/ggml/src/ggml-cpu/arch/x86/quants.c
+@@ -1344,6 +1344,12 @@ void ggml_vec_dot_q8_0_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const voi
+     __m256 accum = _mm256_setzero_ps();
+ 
+     for (; ib + 1 < nb; ib += 2) {
++#if defined(PDL_AVX1_Q8_PREFETCH_DISTANCE) && PDL_AVX1_Q8_PREFETCH_DISTANCE > 0
++        if (ib + PDL_AVX1_Q8_PREFETCH_DISTANCE < nb) {
++            _mm_prefetch((const char *) &x[ib + PDL_AVX1_Q8_PREFETCH_DISTANCE], _MM_HINT_T0);
++            _mm_prefetch((const char *) &y[ib + PDL_AVX1_Q8_PREFETCH_DISTANCE], _MM_HINT_T0);
++        }
++#endif
+         const __m128i qx_1_0 = _mm_loadu_si128((const __m128i *)x[ib].qs);
+         const __m128i qx_1_1 = _mm_loadu_si128((const __m128i *)x[ib].qs + 1);
+         const __m128i qx_2_0 = _mm_loadu_si128((const __m128i *)x[ib + 1].qs);
+diff --git a/ggml/src/ggml-cpu/ggml-cpu.cpp b/ggml/src/ggml-cpu/ggml-cpu.cpp
+index 74631c28..f0ae4a73 100644
+--- a/ggml/src/ggml-cpu/ggml-cpu.cpp
++++ b/ggml/src/ggml-cpu/ggml-cpu.cpp
+@@ -43,6 +43,15 @@ std::vector<ggml_backend_buffer_type_t> & ggml_backend_cpu_get_extra_buffer_type
+     static std::vector<ggml_backend_buffer_type_t> bufts = []() {
+         std::vector<ggml_backend_buffer_type_t> bufts;
+ 
++#if defined(__linux__)
++        if (auto * numa0 = ggml_backend_cpu_numa_buffer_type(0)) {
++            bufts.push_back(numa0);
++        }
++        if (auto * numa1 = ggml_backend_cpu_numa_buffer_type(1)) {
++            bufts.push_back(numa1);
++        }
++#endif
++
+ #if defined(__AMX_INT8__) && defined(__AVX512VNNI__)
+         if (ggml_backend_amx_buffer_type()) {
+             bufts.push_back(ggml_backend_amx_buffer_type());
