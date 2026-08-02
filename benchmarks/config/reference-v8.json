@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "name": "reference-v8-shape",
+  "description": "Historical reference only; do not copy blindly.",
+  "base_args": [
+    "--alias", "${MODEL_ALIAS}",
+    "--ctx-size", "32768",
+    "--n-predict", "1",
+    "--host", "${CANDIDATE_HOST}",
+    "--port", "${CANDIDATE_PORT}",
+    "--parallel", "1",
+    "--metrics", "--perf", "--numa", "distribute"
+  ],
+  "candidates": [
+    {
+      "stage": "reference",
+      "name": "v8-reference",
+      "numactl_prefix": ["numactl", "--interleave=0,1"],
+      "kernel": {"numa_balancing": 0},
+      "args": [
+        "--load-mode", "none",
+        "--batch-size", "2048",
+        "--ubatch-size", "1024",
+        "--threads", "8",
+        "--threads-batch", "32",
+        "--n-cpu-moe", "45",
+        "--gpu-layers", "auto",
+        "--cache-type-k", "q8_0",
+        "--cache-type-v", "q8_0"
+      ]
+    }
+  ]
+}
