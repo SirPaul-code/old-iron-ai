@@ -1,0 +1,46 @@
+{
+  "status": "complete",
+  "v7_median_prompt_tok_s": 104.41462680727065,
+  "final_candidate": {
+    "binary": "v3",
+    "wrapper": "numactl-interleave",
+    "allocator": "inherit",
+    "batch": 2048,
+    "ubatch": 1024,
+    "threads": 8,
+    "threads_batch": 32,
+    "n_cpu_moe": 45,
+    "gpu_layers": "auto",
+    "override_tensor": ""
+  },
+  "final_validation": {
+    "samples": 6,
+    "cold_loads": 2,
+    "min_prompt_tok_s": 173.4113706464686,
+    "median_prompt_tok_s": 176.09250719268482,
+    "mean_prompt_tok_s": 175.67477156454655,
+    "max_prompt_tok_s": 176.92199080461904,
+    "cv": 0.006852075197957044,
+    "gain_vs_v7": 1.686473558132021
+  },
+  "selection_stages": {
+    "allocator_screen": [
+      {"name":"v7-global-interleave","samples":3,"min":104.94349092075679,"median":105.89422288739411,"mean":105.69659701698002,"max":106.25207724278917,"cv":0.005224412067849841}
+    ],
+    "avx_screen": [
+      {"name":"avx-control","samples":1,"median":174.6265282183482,"selected":true}
+    ],
+    "moe_screen": [
+      {"name":"moe-control","samples":1,"median":174.46797211131675,"selected":true}
+    ],
+    "runtime_screen": [
+      {"name":"runtime-ub1024","samples":1,"median":174.483080815979,"selected":true},
+      {"name":"runtime-b4096-ub512","samples":1,"median":102.46551058218283},
+      {"name":"runtime-v7","samples":1,"median":102.28639774497942},
+      {"name":"runtime-cpu-moe46","samples":1,"median":100.80281445728679},
+      {"name":"runtime-ub256","samples":1,"median":60.43155631232061}
+    ]
+  },
+  "correctness_report": "CORRECTNESS_REPORT.json",
+  "agentic_report": "AGENTIC_REPORT.json"
+}
