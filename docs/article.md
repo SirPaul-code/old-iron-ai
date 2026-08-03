@@ -4,17 +4,19 @@
 
 This report describes the characterization and optimization of an approximately 85 GiB Qwen3-Coder-Next Q8_0 GGUF model on a 2012 HP ProLiant DL380p Gen8 equipped with two Intel Xeon E5-2660 processors, 173 GiB of DDR3 memory and one NVIDIA RTX 3080 with 10 GiB VRAM. Because the model was much larger than GPU memory, ordinary host RAM and the two-socket NUMA topology were directly involved in inference.
 
-The study separated model loading, cold prompt-prefill, cached turns and generated-token throughput. A controlled mmap-oriented baseline processed the fixed prompt corpus at 38.721 tokens per second. The final V8 candidate reached a median of 176.093 tokens per second over six samples and two independent cold process loads, a 4.55x increase in cold-prefill throughput. Generated-token throughput remained approximately 15–16 tokens per second in the recorded agentic fixture and is not represented by the headline result.
+The study separated model loading, cold prompt-prefill, cached turns and generated-token throughput. A controlled mmap-oriented baseline processed the fixed prompt workload at 38.721 tokens per second. The final V8 candidate reached a median of 176.093 tokens per second over six samples and two independent cold process loads, a 4.55x increase in cold prompt-prefill throughput. In the recorded agentic fixture, generated-token throughput remained approximately 15–16 tokens per second and short cached follow-up turns remained around 2.7 seconds.
 
 The largest validated steps were changing the model-loading path from mmap to no-mmap, using both NUMA memory controllers with a stable process policy, avoiding an unfavorable CPU-worker geometry and increasing the physical micro-batch from 512 to 1024 after the host path had been corrected. Experimental in-engine NUMA allocation, AVX1 prefetch and alternative MoE placement branches did not beat their controls.
 
+V8 should therefore be understood as a practical system-optimization result rather than a prefill-only product. Cold prefill provides the cleanest repeated headline measurement, but the optimized host was already useful for unattended coding, research and authorized security work. Later, longer OpenCode sessions exposed a new class of bottlenecks involving context growth, KV-cache behaviour and agent orchestration. Those questions form the V9 research direction and are not published here as code or validated results.
+
 ## 1. Motivation
 
-The practical objective was not an instant chatbot. The target workload consisted of coding, technical research and authorized security tasks that could run unattended for hours. A memory-rich server already existed, while recurring cloud usage and session limits made long experiments inconvenient.
+The practical objective was to run coding, technical research and authorized security tasks locally for hours without depending on cloud session limits or variable usage cost. A memory-rich server already existed, but it was old, loud and built around a dual-socket Sandy Bridge topology that modern inference defaults were not designed around.
 
 The first crude end-to-end smoke test took roughly eight minutes to return a one-line `OK`. It proved only that the model server and agent harness could communicate. It did not separate model startup, prompt ingestion, runtime overhead and output generation, so it is not used as a benchmark baseline.
 
-A repeatable benchmark programme was built around llama.cpp to determine whether the old host could become practically useful and, more importantly, which parts of the system were responsible for the delay.
+A repeatable benchmark programme was built around `llama.cpp` to determine whether the old host could become practically useful and which parts of the system were responsible for the delay. The objective was broader than maximizing one number: model loading, fresh-context processing, cached interaction and generation all needed to be measured separately so that an improvement in one phase would not be misrepresented as an improvement in every phase.
 
 ## 2. Reference system
 
@@ -22,15 +24,17 @@ The server contained two Xeon E5-2660 v1 processors. Each socket provided eight 
 
 The RTX 3080 provided only 10 GiB VRAM, so the majority of the 85 GiB quantized model remained in system memory. The GPU was attached through a riser and powered by a separate PSU because it did not fit conventionally in the chassis.
 
-This arrangement made the host data path part of the inference engine in practice. The GPU could only execute work as quickly as model data and intermediate tensors could be supplied by the CPUs and memory subsystem.
+This arrangement made the host data path part of inference in practice. The GPU could only execute work as quickly as model data and intermediate tensors could be supplied by the CPUs and memory subsystem.
 
 ## 3. Measurement boundaries
 
-The study used a fixed three-file prompt corpus with committed SHA-256 hashes. Most characterization requests generated one token, making request time predominantly prompt-prefill time. Prefix-cache reuse was disabled for cold-prefill measurements.
+The final public handoff preserved three prompt SHA-256 fingerprints and the reported 8,663-token input, but not the original prompt text. The repository therefore publishes a fingerprints-only provenance manifest instead of reconstructing or fabricating replacement prompts.
+
+Most characterization requests generated one token, making request time predominantly prompt-prefill time. Prefix-cache reuse was disabled for cold-prefill measurements.
 
 The following quantities were kept distinct:
 
-- **Cold process load:** a newly started llama.cpp server process.
+- **Cold process load:** a newly started `llama.cpp` server process.
 - **Cold prompt-prefill:** processing the complete input without prefix-cache reuse.
 - **Cached turn:** a follow-up request that can reuse a previously processed prefix.
 - **Decode:** generation of output tokens after prefill.
@@ -52,7 +56,7 @@ V3 used eager allocation and explicit placement to compare the two memory nodes.
 
 This was an important causal result: physical placement alone could change prompt throughput materially. It also contradicted the simple assumption that the socket physically closer to the GPU must be the best location. CPU-side MoE work and aggregate host-memory behaviour mattered more than PCIe proximity alone.
 
-Interleaving was unstable at this stage, ranging from 32.042 to 48.246 tok/s. That did not invalidate interleaving as a later strategy; it showed that policy could not be evaluated independently of the model-loading path.
+Interleaving was unstable at this stage, ranging from 32.042 to 48.246 tok/s. That did not invalidate interleaving as a later strategy; it showed that memory policy could not be evaluated independently of the model-loading path.
 
 ### 4.3 Automatic balancing was primarily a determinism control
 
@@ -62,7 +66,7 @@ CPU affinity also failed to explain the primary ceiling. Some node-pinned arrang
 
 ### 4.4 More workers could be slower
 
-The V5 thread matrix showed that worker geometry needed to be treated separately for prefill and decode. Under the same mmap stage, `threads=8, threads-batch=32` reached 38.770 tok/s, while `threads=16, threads-batch=32` fell to 24.865 tok/s.
+The V5 thread matrix showed that worker geometry needed to be treated separately for prompt processing and decode. Under the same mmap stage, `threads=8, threads-batch=32` reached 38.770 tok/s, while `threads=16, threads-batch=32` fell to 24.865 tok/s.
 
 On this host, adding workers could increase synchronization, cache pressure and traffic over the inter-socket QPI link. Logical CPU count was therefore not a suitable default for every worker pool.
 
@@ -112,19 +116,17 @@ Final validation produced six samples across two independent cold process loads:
 
 The gain over the V7 median was 1.686x. Relative to the paired controlled mmap baseline, the final cold-prefill result was approximately 4.55x higher.
 
-## 5. User-visible interpretation
+## 5. Practical interpretation
 
-For the fixed input of approximately 8,686 tokens, the isolated cold-prefill stage corresponds to roughly 224.3 seconds at 38.721 tok/s and 49.3 seconds at 176.093 tok/s.
+For the fixed input of approximately 8.7k tokens, the isolated cold-prefill stage corresponds to roughly 224.3 seconds at 38.721 tok/s and 49.3 seconds at 176.093 tok/s.
 
-These derived times are not a pause that occurs before every response. They describe processing a complete uncached starting context. Cached follow-up turns behave differently.
+The separate agentic fixture provides a more complete view of the resulting runtime behaviour. The first turn fell from 87.949 seconds on the V7 baseline to 52.938 seconds on V8. Short cached follow-up turns remained around 2.7 seconds, and recorded generation was approximately 15–16 tok/s.
 
-In the separate agentic fixture, the first turn fell from 87.949 seconds on the V7 baseline to 52.938 seconds on V8. Short cached follow-up turns remained around 2.7 seconds. Recorded generation was approximately 15–16 tok/s.
-
-The practical outcome was that a server that had little remaining conventional value became useful for unattended local work. The system does not need to behave like a modern interactive AI appliance to be valuable for overnight tasks.
+The practical outcome was therefore not limited to a faster synthetic prefill chart. The optimized V8 profile made the server useful for unattended local coding, research and authorized security tasks. Fresh sessions became substantially less expensive, cached interaction remained responsive enough for the intended workflow, and generation speed was already usable for overnight work.
 
 ## 6. Why the result is plausible
 
-The headline result is not evidence that old Xeons became modern accelerators. It is evidence that the initial software path used the available machine poorly.
+The headline result shows how poorly the initial software path used the available machine and how much performance could be recovered without replacing the model, GPU or server.
 
 The causal chain supported by the experiments is:
 
@@ -133,6 +135,7 @@ The causal chain supported by the experiments is:
 3. The mmap path remained slow even with favourable placement, while paired no-mmap was approximately 2.4x faster.
 4. The V7 policy made both memory controllers productive and raised GPU utilization substantially.
 5. Once that path was corrected, V8 showed that a larger micro-batch could expose much more prompt-processing throughput.
+6. The resulting profile retained usable generated-token speed and cached-turn behaviour for the intended local-agent workload.
 
 No single vague “optimization” produced the result. It was the combination of controlled measurement, corrected loading, topology-aware placement, appropriate workers and runtime geometry.
 
@@ -150,31 +153,50 @@ The project preserves failed experiments because they narrow the explanation:
 
 A credible performance report must make it possible to distinguish the winning configuration from abandoned hypotheses.
 
-## 8. Reproduction on another host
+## 8. Applying the methodology on another host
 
-The exact V8 values should not be copied blindly. A different DIMM population, CPU generation, model quantization, GPU, llama.cpp build or context target can change the winner.
+The exact V8 values should not be copied blindly. A different DIMM population, CPU generation, model quantization, GPU, `llama.cpp` build or context target can change the winner.
 
-The repository therefore provides an agent-oriented workflow:
+The transferable result is the method:
 
 1. Capture the hardware topology and current production state read-only.
-2. Record the exact llama.cpp binary identity and supported flags.
+2. Record the exact `llama.cpp` binary identity and supported flags.
 3. Select the workload objective.
-4. Generate a staged matrix from safe hypotheses.
-5. Run candidates on an isolated loopback port.
-6. Record effective arguments, physical page placement, raw timing fields and correctness hashes.
-7. Repeat the winner across independent cold loads.
-8. Present evidence and rollback instructions before deployment.
+4. Measure loading, cold prompt-prefill, cached turns and generation separately.
+5. Generate a staged matrix from safe hypotheses.
+6. Run candidates on an isolated loopback port.
+7. Record effective arguments, physical page placement, raw timing fields and correctness hashes.
+8. Repeat the winner across independent cold loads.
+9. Present evidence and rollback instructions before deployment.
 
 The runner treats OOM, unsupported flags and startup failures as candidate-local results and restores saved kernel settings after each arm.
 
-## 9. Limitations
+The broader proof of concept is that a machine does not need to match this HP server for the investigation to be useful. A single-socket workstation, old EPYC server, mixed-GPU host or memory-constrained desktop may expose different bottlenecks, but each can benefit from measuring its actual topology and workload instead of assuming that defaults are optimal.
+
+## 9. V9 research direction
+
+V8 completed the first phase: it produced a stable, practical local inference profile and an evidence-backed explanation of the largest gains.
+
+The next phase began when longer OpenCode sessions and more complex agentic workflows accumulated much larger active contexts. At that point the optimization target expanded beyond initial model loading and fresh-context ingestion. Context growth, KV-cache placement and compression, CPU/GPU MoE division, long-context generation and agent-runtime orchestration became first-class variables.
+
+That work is referred to as V9. It is intentionally represented here only as a research direction. No V9 implementation, benchmark code or unvalidated result is included in the V8 publication.
+
+## 10. Limitations
 
 This is a single-host study. It is not a model-quality evaluation, a concurrent serving benchmark, a power/TCO comparison or a claim against modern AI hardware. The deterministic output fixture is deliberately narrow. The final runtime screens used one sample per candidate before repeated validation of the selected winner.
 
-Long-context generation is a separate problem. A later live V9 observation at approximately 78.7k context recorded 93.58 prompt tok/s but only 3.34 generation tok/s, showing that the V8 cold-prefill winner did not solve every phase of a long-running agent workload.
+The 176.093 tok/s headline is a cold prompt-prefill result. It is the strongest repeated and controlled measurement, not a replacement for the separately reported generation and agentic-fixture numbers.
 
-## 10. Conclusion
+The original prompt text and complete ordered source-patch series were not present in the public handoff. The repository therefore publishes prompt fingerprints, normalized evidence and source provenance without claiming a bit-identical public reconstruction.
+
+No complete V9 long-context study is included in this release.
+
+## 11. Conclusion
 
 Old hardware can lose commercial value before it loses practical value. The DL380p Gen8 remained limited by power use, noise, CPU generation and GPU memory, but it also retained 173 GiB of RAM, two memory controllers and enough aggregate capacity to run a model that could not fit on the GPU.
 
-By measuring the real topology instead of treating the host as a flat pool of RAM and threads, cold prompt-prefill increased from 38.721 to 176.093 tok/s. The system became useful not through a new model or a new GPU, but by adapting the inference path to the machine that actually existed.
+By measuring the real topology instead of treating the host as a flat pool of RAM and threads, cold prompt-prefill increased from 38.721 to 176.093 tok/s. More importantly, the resulting V8 profile was usable as a complete local inference system for the intended workload: generated-token speed remained around 15–16 tok/s, cached follow-up turns remained short, and unattended coding and research tasks became practical.
+
+The broader lesson is not tied to this exact server or these exact flags. Old or unconventional hardware may still have substantial useful capacity hidden behind unsuitable defaults. The correct response is to measure the machine that actually exists, identify the current bottleneck and adapt the inference path to it.
+
+V8 records that completed result. V9 continues the same process at the next layer, where long context and agent orchestration become the bottleneck rather than basic host-side throughput.
