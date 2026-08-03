@@ -1,28 +1,22 @@
 # Old Iron AI
 
-**A public case study in extracting useful local-LLM performance from old, memory-rich hardware.**
+**A topology-aware `llama.cpp` case study showing how much practical performance can be recovered from old, memory-rich hardware by measuring the machine instead of trusting defaults.**
 
-Old Iron AI documents a controlled optimization study on a 2012 HP ProLiant DL380p Gen8 with two Intel Xeon E5-2660 CPUs, 173 GiB of DDR3 and one RTX 3080 10 GiB. The reference workload was an approximately 85 GiB Qwen3-Coder-Next Q8_0 GGUF model, so most of the model remained in system memory and the host memory path became part of inference performance.
+Old Iron AI documents a controlled optimization programme on a 2012 HP ProLiant DL380p Gen8 with two Intel Xeon E5-2660 CPUs, 173 GiB of DDR3 and one RTX 3080 10 GiB. The reference workload was an approximately 85 GiB Qwen3-Coder-Next Q8_0 GGUF model, so most of the model lived in ordinary host memory and the two-socket NUMA topology became part of the inference path.
 
-The project began with a crude end-to-end smoke test that needed roughly eight minutes to return a one-line `OK`. That observation is only the origin story: it mixed model loading, prompt processing, runtime overhead and output generation. The publishable study starts with a fixed workload and measures those stages separately.
+The project began with a crude end-to-end smoke test that needed roughly eight minutes to return a one-line `OK`. That result was not treated as a benchmark. It only proved that the model server, GPU, host memory and agent harness could communicate. The publishable study starts with controlled measurements that separate model loading, prompt ingestion, cached turns and token generation.
 
-## Why this repository exists
+## What this project demonstrates
 
-This is not a universal configuration file and it is not a claim that the settings from one HP server should be copied to every machine.
+The point of this repository is not that everyone should copy the exact V8 flags. A different CPU generation, DIMM layout, GPU, model, quantization or context target can produce a different winner.
 
-It is a proof of concept for a broader idea: **hardware that appears too old or too slow for local AI may still have useful performance hidden behind unsuitable defaults.** On this machine, changing how the model was loaded, where its memory pages were placed, how both CPU sockets were used and how prompt batches were divided made a much larger difference than replacing the model or GPU.
-
-The intended takeaway for someone with different hardware is not “use these exact flags.” It is:
+The point is that default inference settings may leave a large amount of performance unused, especially on older or unconventional systems. NUMA placement, loading mode, worker geometry, micro-batching, GPU offload and cache policy can matter enough to turn hardware that looks obsolete into a useful local-AI machine.
 
 > Measure the machine you actually have. Test one hypothesis at a time. The default inference configuration may be leaving a large amount of performance unused.
 
-A single-socket workstation, an EPYC server, an old Xeon box, a mixed-GPU system or a machine with more VRAM will probably choose different winners. The methodology is transferable even when the final parameters are not.
+V8 is the completed, evidence-backed case study. It made this server practically useful for local coding, research and authorized security work. The strongest repeatable headline result is cold prompt-prefill, but V8 was not useful only because prefill became fast: generated-token throughput remained around 15–16 tok/s in the recorded agentic fixture, and short cached follow-up turns stayed around 2.7 seconds.
 
-## What was optimized
-
-V1 through V8 concentrated primarily on **cold prompt-prefill**: the stage where the model reads a large starting context before it begins generating the answer. This matters for coding and research agents because a fresh run may need to read repository context, instructions, tools and accumulated research before useful output begins.
-
-The work separated that stage from generated-token speed so that a prefill improvement would not be presented as an improvement to the entire agent.
+Later, larger agentic workflows exposed the next layer of the problem. As context accumulated and OpenCode orchestration became part of the workload, the bottleneck was no longer just feeding the first prompt quickly. V9 is the active follow-on study for long-context generation, KV-cache behaviour, context growth, MoE placement and agent-runtime interaction. This repository keeps V8 as the finished publication and mentions V9 only as the next research direction; no V9 code or unpublished results are included.
 
 ## Headline result
 
@@ -33,7 +27,7 @@ The work separated that stage from generated-token speed so that a prefill impro
 | V7 validated profile | 104.415 tok/s | 83.2 s |
 | V8 final validation | **176.093 tok/s** | **49.3 s** |
 
-That is approximately **4.55x higher cold prompt-prefill throughput** on the same host, GPU, model family and fixed workload. It is not a claim that generated-token speed or the complete agent became 4.55x faster. Recorded generation stayed around 15–16 tok/s in the V8 agentic fixture.
+That is approximately **4.55x higher cold prompt-prefill throughput** on the same host, GPU, model family and fixed workload. It is not a claim that generated-token speed or the complete agent became 4.55x faster.
 
 V8 was validated across six samples from two independent cold process loads. The range was 173.411–176.922 tok/s with a coefficient of variation of 0.69%.
 
@@ -48,7 +42,7 @@ V8 was validated across six samples from two independent cold process loads. The
 | V8 `ubatch=1024` vs `ubatch=256` | 174.483 vs 60.432 tok/s | Micro-batch geometry caused the final large V8 step. |
 | Explicit allocator, AVX1 and MoE placement prototypes | Controls remained selected | These research branches did not cause the published result. |
 
-The GPU was not replaced and the model was not changed. The result came from improving the host pipeline feeding the GPU: deterministic placement experiments, no-mmap loading, interleaving across both memory controllers, a stable worker geometry and a larger physical micro-batch.
+The GPU was not replaced and the model was not changed. The improvement came from correcting the host-side path that supplied the GPU: deterministic placement experiments, no-mmap loading, interleaving across both memory controllers, a stable worker geometry and a larger physical micro-batch.
 
 ## Final selected benchmark profile
 
@@ -69,21 +63,21 @@ These values are a reproducible hypothesis set for similar systems, not universa
 
 ## Why it worked
 
-The 85 GiB model could not fit in 10 GiB of VRAM, so ordinary DDR3 was part of the inference hot path. The server is two NUMA domains connected by QPI rather than one flat pool of cores and RAM. V3 showed that physical page placement alone could change throughput by more than half. V6 then showed that placement did not rescue the mmap path: paired no-mmap loads were about 2.4x faster and loaded the model in roughly 475 seconds instead of roughly 1,386 seconds.
+The 85 GiB model could not fit in 10 GiB of VRAM, so ordinary DDR3 was part of the inference hot path. The server is two NUMA domains connected by QPI rather than one flat pool of cores and RAM. V3 showed that physical page placement alone could change throughput by more than half. V6 then showed that favourable placement did not rescue the mmap path: paired no-mmap loads were about 2.4x faster and loaded the model in roughly 475 seconds instead of roughly 1,386 seconds.
 
 The V7 profile raised recorded GPU utilization from 38.49% to 97.45% while CPU IPC rose from 0.446 to 1.852. Concurrent memory testing reached 39.185 GiB/s, approximately the sum of the two local controllers. The evidence supports a host-pipeline explanation: the original runtime did not feed the GPU continuously; no-mmap plus an interleaved policy allowed more useful host and GPU work to overlap.
 
 V8 exposed another large control after the loading path was corrected. A 1024-token micro-batch reached 174.483 tok/s in screening, while 256 reached 60.432 tok/s. The final six-sample validation then reached 176.093 tok/s.
 
-## Current research direction: V9 and later
+## Practical result
 
-The V1–V8 work made fresh-context processing practical enough for the machine to become useful. The next bottleneck is different.
+The controlled numbers matter because they make the improvement auditable, but the useful result is broader than one chart. The server became capable of running real local coding and research tasks unattended. In the recorded agentic fixture:
 
-V9 and the following benchmark generations are focused on **generated-token speed and long-running agent behaviour**, including long contexts, KV-cache placement and compression, CPU/GPU MoE division, tool-heavy workloads and the point at which generation slows as the active context grows.
+- the first turn fell from 87.949 seconds on the V7 baseline to 52.938 seconds on V8;
+- short cached follow-up turns remained around 2.7 seconds;
+- generated-token throughput remained around 15–16 tok/s.
 
-One live V9 observation at approximately 78.7k context showed about 93.58 prompt tok/s but only 3.34 generated tok/s. That does not invalidate the V8 prefill result; it shows why prompt processing and generation need to be optimized and reported separately.
-
-New validated results can be added as later chapters without rewriting the V1–V8 evidence.
+That was already practical for the intended overnight workload. V9 begins where V8 stops: not because V8 generation was unusable, but because longer OpenCode sessions, growing context and more complex agentic workflows created a new optimization target.
 
 ## Repository map
 
@@ -102,7 +96,17 @@ CLAIM_LEDGER.md             public claim-to-evidence map
 
 ## Applying the idea to another machine
 
-Start by recording the hardware and the exact CLI supported by the installed `llama-server`:
+Do not copy this server's flags blindly. Use the same process:
+
+1. record the hardware topology and software build;
+2. choose the workload that actually matters;
+3. measure loading, cold prompt-prefill, cached turns and generation separately;
+4. test one hypothesis at a time;
+5. verify physical page placement instead of trusting intended policy;
+6. repeat the winner across independent cold loads;
+7. keep failed experiments because they explain the result.
+
+Start with the read-only audit and capture the exact CLI supported by the installed binary:
 
 ```bash
 ./scripts/audit-host.sh results/host-audit.json
@@ -113,16 +117,7 @@ python3 benchmarks/tools/generate_matrix.py \
   --output results/matrix.json
 ```
 
-Review the generated matrix before running anything. The useful experiment set depends on the machine:
-
-- multi-socket hosts should test NUMA placement and interleaving;
-- memory-constrained GPUs should test weight and KV-cache placement;
-- older CPUs should test worker counts rather than assuming more threads are faster;
-- large prompts should test `batch-size` and `ubatch-size` independently;
-- mmap, no-mmap and page-fault behaviour should be measured rather than assumed;
-- prompt-prefill and generation should always be reported separately.
-
-The runner uses an isolated loopback port, records effective arguments, treats OOM and unsupported candidates as local failures, captures NUMA placement and restores kernel settings after each arm. It does not replace an existing production service automatically.
+Review the generated matrix before execution. The runner uses an isolated loopback port, records effective arguments, treats OOM and unsupported candidates as local failures, captures NUMA placement and restores kernel settings after each arm. It does not replace an existing production service automatically.
 
 The agent-oriented entry point is [`prompts/optimize-my-host.md`](prompts/optimize-my-host.md). Agent safety and evidence rules are in [`AGENTS.md`](AGENTS.md).
 
@@ -156,9 +151,9 @@ These checks validate the committed data, calculations, links and script syntax.
 
 ## Scope
 
-This is a single-host systems study focused on cold prompt-prefill, selected cached turns, memory placement and runtime geometry. It is not a model-quality evaluation, multi-user serving benchmark, wall-power/TCO study or comparison against modern AI appliances.
+This is a single-host systems study and an engineering proof of concept. It shows that topology-aware measurement and runtime tuning can materially improve a local inference system on old hardware. It does not claim universal settings, model-quality gains, multi-user serving results, wall-power/TCO improvements or superiority over modern AI hardware.
 
-The broader claim is deliberately narrower and more useful: **old or unconventional hardware may still become a practical local-AI machine when the inference stack is measured and adapted to the topology that actually exists.**
+V8 is the completed result set. V9 is only the stated next research direction for longer agentic sessions and is intentionally not published here as code or evidence.
 
 ## License
 
